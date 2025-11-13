@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.database import engine, Base
-from app.routers import tank_details , regulations_master , tank_regulations , cargo_tank , cargo_master , tank_inspection
+from app.routers import tank_details , regulations_master , tank_regulations , cargo_tank , cargo_master , tank_inspection, auth, users
 
 app = FastAPI(
     title="ISO TANKS MANAGEMENT",
@@ -62,6 +62,16 @@ app.include_router(
     tank_inspection.router,
     prefix="/api/inspections",
     tags=["Inspections"])
+
+app.include_router(
+    auth.router,
+    prefix="/api/auth",
+    tags=["Auth"])
+
+app.include_router(
+    users.router,
+    prefix="/api/users",
+    tags=["Users"])
 
 @app.get("/", response_class=HTMLResponse)
 def main_page(request: Request):
