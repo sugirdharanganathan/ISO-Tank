@@ -62,6 +62,9 @@ def create_tank(data: dict, db: Session = Depends(get_db)):
     gross_kg=data["gross_kg"],
     net_kg=data["net_kg"],
     color_body_frame=data["color_body_frame"],
+    working_pressure=data.get("working_pressure"),
+    cabinet_type=data.get("cabinet_type"),
+    frame_type=data.get("frame_type"),
     remark=data.get("remark"),                
     lease=bool(data.get("lease", 0)),       
     created_by=data.get("created_by")
@@ -106,6 +109,9 @@ def get_all_tanks(db: Session = Depends(get_db)):
         "gross_kg": r[1].gross_kg,
         "net_kg": r[1].net_kg,
         "color_body_frame": r[1].color_body_frame,
+        "working_pressure": r[1].working_pressure,
+        "cabinet_type": r[1].cabinet_type,
+        "frame_type": r[1].frame_type,
         "remark": r[1].remark,                  
         "lease": int(r[1].lease),             
         "created_by": r[0].created_by
@@ -151,6 +157,9 @@ def export_to_excel(db: Session = Depends(get_db)):
         "Gross (kg)",
         "Net (kg)",
         "Color Body Frame",
+        "Working Pressure",
+        "Cabinet Type",
+        "Frame Type",
         "Remark",
         "Lease",
         "Created By",
@@ -191,10 +200,13 @@ def export_to_excel(db: Session = Depends(get_db)):
         ws.cell(row=row_num, column=18, value=tank_detail.gross_kg)
         ws.cell(row=row_num, column=19, value=tank_detail.net_kg)
         ws.cell(row=row_num, column=20, value=tank_detail.color_body_frame)
-        ws.cell(row=row_num, column=21, value=tank_detail.remark)
-        ws.cell(row=row_num, column=22, value="Yes" if tank_detail.lease else "No")
-        ws.cell(row=row_num, column=23, value=tank_detail.created_by)
-        ws.cell(row=row_num, column=24, value=tank_detail.updated_by)
+        ws.cell(row=row_num, column=21, value=tank_detail.working_pressure)
+        ws.cell(row=row_num, column=22, value=tank_detail.cabinet_type)
+        ws.cell(row=row_num, column=23, value=tank_detail.frame_type)
+        ws.cell(row=row_num, column=24, value=tank_detail.remark)
+        ws.cell(row=row_num, column=25, value="Yes" if tank_detail.lease else "No")
+        ws.cell(row=row_num, column=26, value=tank_detail.created_by)
+        ws.cell(row=row_num, column=27, value=tank_detail.updated_by)
     
     # Auto-adjust column widths
     for col_num, header in enumerate(headers, 1):
@@ -245,6 +257,7 @@ def update_tank(tank_id: int, data: dict, db: Session = Depends(get_db)):
     "capacity_l", "mawp", "design_temperature", "tare_weight_kg",
     "mgw_kg", "mpl_kg", "size", "pump_type",
     "vesmat", "gross_kg", "net_kg", "color_body_frame",
+    "working_pressure", "cabinet_type", "frame_type",
     "remark", "lease", "updated_by"            
 ]
 
@@ -310,6 +323,9 @@ def get_tank_by_id(tank_id: int, db: Session = Depends(get_db)):
         "gross_kg": tank_detail.gross_kg,
         "net_kg": tank_detail.net_kg,
         "color_body_frame": tank_detail.color_body_frame,
+        "working_pressure": tank_detail.working_pressure,
+        "cabinet_type": tank_detail.cabinet_type,
+        "frame_type": tank_detail.frame_type,
         "remark": tank_detail.remark,
         "lease": int(tank_detail.lease),
         "created_by": tank.created_by,
