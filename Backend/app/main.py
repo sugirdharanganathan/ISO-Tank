@@ -3,9 +3,15 @@ from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+import os
+from dotenv import load_dotenv
 
 from app.database import engine, Base
-from app.routers import tank_details , regulations_master , tank_regulations , cargo_tank , cargo_master , tank_inspection, auth, users
+from app.routers import tank_details , regulations_master , tank_regulations , cargo_tank , cargo_master , tank_inspection, auth, users, upload
+
+load_dotenv()
+UPLOAD_ROOT = os.getenv("UPLOAD_ROOT", os.path.join(os.path.dirname(__file__), "..", "uploads"))
+os.makedirs(UPLOAD_ROOT, exist_ok=True)
 
 app = FastAPI(
     title="ISO TANKS MANAGEMENT",
@@ -16,6 +22,7 @@ Base.metadata.create_all(bind=engine)
 
 templates = Jinja2Templates(directory="app/templates")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
+app.mount("/uploads", StaticFiles(directory=UPLOAD_ROOT), name="uploads")
 
 app.add_middleware(
     CORSMiddleware,
@@ -72,6 +79,11 @@ app.include_router(
     users.router,
     prefix="/api/users",
     tags=["Users"])
+
+app.include_router(
+    upload.router,
+    prefix="/api/upload",
+    tags=["Upload"])
 
 @app.get("/", response_class=HTMLResponse)
 def main_page(request: Request):
