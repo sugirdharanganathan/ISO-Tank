@@ -1,13 +1,11 @@
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 import os
 from dotenv import load_dotenv
 
 from app.database import engine, Base
-from app.routers import tank_details , regulations_master , tank_regulations , cargo_tank , cargo_master , tank_inspection, auth, users, upload
+from app.routers import tank_details , regulations_master , tank_regulations , cargo_tank , cargo_master , auth, users, upload, tank_certificate
 
 load_dotenv()
 UPLOAD_ROOT = os.getenv("UPLOAD_ROOT", os.path.join(os.path.dirname(__file__), "..", "uploads"))
@@ -20,7 +18,6 @@ app = FastAPI(
 
 Base.metadata.create_all(bind=engine)
 
-templates = Jinja2Templates(directory="app/templates")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 app.mount("/uploads", StaticFiles(directory=UPLOAD_ROOT), name="uploads")
 
@@ -45,7 +42,7 @@ app.include_router(
 app.include_router(
     regulations_master.router,
     prefix="/api/regulations",
-    tags=["Regulations"]
+    tags=["Regulations Master"]
 )
 
 app.include_router(
@@ -65,10 +62,6 @@ app.include_router(
     prefix="/api/cargo_tank_master",
     tags=["Cargo Tank Master"])
 
-app.include_router(
-    tank_inspection.router,
-    prefix="/api/inspections",
-    tags=["Inspections"])
 
 app.include_router(
     auth.router,
@@ -85,7 +78,12 @@ app.include_router(
     prefix="/api/upload",
     tags=["Upload"])
 
-@app.get("/", response_class=HTMLResponse)
-def main_page(request: Request):
-    return templates.TemplateResponse("tank_management.html", {"request": request})
+app.include_router(
+    tank_certificate.router,
+    prefix="/api/certificates",
+    tags=["Tank Certificates"])
+
+@app.get("/")
+def main_page():
+    return {"message": "ISO Tanks backend is running"}
 

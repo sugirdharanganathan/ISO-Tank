@@ -11,7 +11,11 @@ def create_transaction(request: dict, db: Session = Depends(get_db)):
     try:
         new_txn = CargoTankTransaction(
             tank_id=request["tank_id"],
-            cargo_reference=request["cargo_master_id"],
+            cargo_reference=request.get("cargo_master_id"),
+            cargo_master_id=request.get("cargo_master_id"),
+            density=request.get("density"),
+            compatability_notes=request.get("compatability_notes"),
+            loading_parts=request.get("loading_parts"),
             created_by=request.get("created_by"),
             updated_by=request.get("updated_by")
         )
@@ -41,6 +45,12 @@ def update_transaction(transaction_id: int, request: dict, db: Session = Depends
         if hasattr(txn, key) and value is not None:
             setattr(txn, key, value)
 
+    # Keep cargo_master_id and cargo_reference in sync if cargo_master_id provided
+    if request.get("cargo_master_id") is not None:
+        txn.cargo_master_id = request.get("cargo_master_id")
+        if not txn.cargo_reference:
+            txn.cargo_reference = request.get("cargo_master_id")
+
     db.commit()
     db.refresh(txn)
     return {"message": "Transaction updated successfully", "data": txn}
@@ -58,8 +68,11 @@ def get_transactions_by_tank(tank_id: int, db: Session = Depends(get_db)):
         {
             "id": t[0].id,
             "tank_id": t[0].tank_id,
-            "cargo_master_id": t[0].cargo_reference,
+            "cargo_master_id": t[0].cargo_master_id or t[0].cargo_reference,
             "cargo_reference": t[1].cargo_reference,
+            "density": t[0].density,
+            "compatability_notes": t[0].compatability_notes,
+            "loading_parts": t[0].loading_parts,
             "created_by": t[0].created_by,
             "updated_by": t[0].updated_by,
             "created_at": t[0].created_at,
