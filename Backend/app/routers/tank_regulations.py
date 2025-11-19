@@ -3,17 +3,48 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.tank_regulations import TankRegulation
 from app.models.regulations_master import RegulationsMaster
+from pydantic import BaseModel
+from typing import Optional
 
 router = APIRouter()
 
+
 # -------- CREATE --------
+class TankRegulationCreate(BaseModel):
+    tank_id: int
+    regulation_id: int
+    initial_approval_no: Optional[str] = None
+    imo_type: Optional[str] = None
+    safety_standard: Optional[str] = None
+    regulation_name: Optional[str] = None
+    country_registration: Optional[str] = None
+    created_by: Optional[str] = None
+
+
+class TankRegulationUpdate(BaseModel):
+    tank_id: Optional[int] = None
+    regulation_id: Optional[int] = None
+    initial_approval_no: Optional[str] = None
+    imo_type: Optional[str] = None
+    safety_standard: Optional[str] = None
+    regulation_name: Optional[str] = None
+    country_registration: Optional[str] = None
+    created_by: Optional[str] = None
+    updated_by: Optional[str] = None
+
+
 @router.post("/")
-def create_tank_regulation(payload: dict, db: Session = Depends(get_db)):
-    required_fields = ["tank_id", "regulation_id"]
-    for f in required_fields:
-        if f not in payload:
-            raise HTTPException(status_code=400, detail=f"Missing field: {f}")
-    reg = TankRegulation(**payload)
+def create_tank_regulation(payload: TankRegulationCreate, db: Session = Depends(get_db)):
+    reg = TankRegulation(
+        tank_id=payload.tank_id,
+        regulation_id=payload.regulation_id,
+        initial_approval_no=payload.initial_approval_no,
+        imo_type=payload.imo_type,
+        safety_standard=payload.safety_standard,
+        regulation_name=payload.regulation_name,
+        country_registration=payload.country_registration,
+        created_by=payload.created_by,
+    )
     db.add(reg)
     db.commit()
     db.refresh(reg)
@@ -60,11 +91,11 @@ def get_tank_regulation_by_id(reg_id: int, db: Session = Depends(get_db)):
 
 # -------- UPDATE --------
 @router.put("/{reg_id}")
-def update_tank_regulation(reg_id: int, payload: dict, db: Session = Depends(get_db)):
+def update_tank_regulation(reg_id: int, payload: TankRegulationUpdate, db: Session = Depends(get_db)):
     reg = db.query(TankRegulation).filter(TankRegulation.id == reg_id).first()
     if not reg:
         raise HTTPException(status_code=404, detail="Tank regulation not found")
-    for key, value in payload.items():
+    for key, value in payload.dict(exclude_unset=True).items():
         if hasattr(reg, key):
             setattr(reg, key, value)
     db.commit()

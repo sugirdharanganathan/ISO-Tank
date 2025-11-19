@@ -4,6 +4,8 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.tank_header import Tank
 from app.models.tank_details import TankDetails
+from pydantic import BaseModel
+from typing import Optional
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill
 from io import BytesIO
@@ -11,64 +13,106 @@ from datetime import datetime
 
 router = APIRouter()
 
+class TankCreate(BaseModel):
+    tank_number: str
+    mfgr: str
+    pv_code: str
+    un_iso_code: str
+    capacity_l: str
+    mawp: str
+    design_temperature: str
+    tare_weight_kg: str
+    mgw_kg: str
+    mpl_kg: str
+    size: str
+    pump_type: str
+    vesmat: str
+    gross_kg: str
+    net_kg: str
+    color_body_frame: str
+    status: Optional[str] = "active"
+    date_mfg: Optional[str] = None
+    working_pressure: Optional[str] = None
+    cabinet_type: Optional[str] = None
+    frame_type: Optional[str] = None
+    remark: Optional[str] = None
+    lease: Optional[bool] = False
+    created_by: Optional[str] = None
+    updated_by: Optional[str] = None
+
+
+class TankUpdate(BaseModel):
+    tank_number: Optional[str] = None
+    status: Optional[str] = None
+    mfgr: Optional[str] = None
+    date_mfg: Optional[str] = None
+    pv_code: Optional[str] = None
+    un_iso_code: Optional[str] = None
+    capacity_l: Optional[str] = None
+    mawp: Optional[str] = None
+    design_temperature: Optional[str] = None
+    tare_weight_kg: Optional[str] = None
+    mgw_kg: Optional[str] = None
+    mpl_kg: Optional[str] = None
+    size: Optional[str] = None
+    pump_type: Optional[str] = None
+    vesmat: Optional[str] = None
+    gross_kg: Optional[str] = None
+    net_kg: Optional[str] = None
+    color_body_frame: Optional[str] = None
+    working_pressure: Optional[str] = None
+    cabinet_type: Optional[str] = None
+    frame_type: Optional[str] = None
+    remark: Optional[str] = None
+    lease: Optional[bool] = None
+    updated_by: Optional[str] = None
+
+
 @router.post("/")
-def create_tank(data: dict, db: Session = Depends(get_db)):
-    required_fields = [
-        "tank_number", "mfgr", "pv_code", "un_iso_code",
-        "capacity_l", "mawp", "design_temperature", "tare_weight_kg",
-        "mgw_kg", "mpl_kg", "size", "pump_type",
-        "vesmat", "gross_kg", "net_kg", "color_body_frame"
-    ]
-
-    for field in required_fields:
-        if field not in data:
-            raise HTTPException(status_code=400, detail=f"{field} is required")
-
+def create_tank(data: TankCreate, db: Session = Depends(get_db)):
+    # Validate required are provided by Pydantic
     tank = Tank(
-        tank_number=data["tank_number"],
-        created_by=data.get("created_by")
+        tank_number=data.tank_number,
+        created_by=data.created_by
     )
     db.add(tank)
     db.commit()
     db.refresh(tank)
 
     # Validate status if provided
-    status = data.get("status", "active")
+    status = data.status or "active"
     if status not in ["active", "inactive"]:
         raise HTTPException(status_code=400, detail="status must be 'active' or 'inactive'")
-    
-    # Sync status to tank_header
     tank.status = status
     db.commit()
     db.refresh(tank)
-    
     tank_detail = TankDetails(
-    tank_id=tank.id,
-    tank_number=data["tank_number"],
-    status=status,
-    mfgr=data["mfgr"],
-    date_mfg=data.get("date_mfg"),
-    pv_code=data["pv_code"],
-    un_iso_code=data["un_iso_code"],
-    capacity_l=data["capacity_l"],
-    mawp=data["mawp"],
-    design_temperature=data["design_temperature"],
-    tare_weight_kg=data["tare_weight_kg"],
-    mgw_kg=data["mgw_kg"],
-    mpl_kg=data["mpl_kg"],
-    size=data["size"],
-    pump_type=data["pump_type"],
-    vesmat=data["vesmat"],
-    gross_kg=data["gross_kg"],
-    net_kg=data["net_kg"],
-    color_body_frame=data["color_body_frame"],
-    working_pressure=data.get("working_pressure"),
-    cabinet_type=data.get("cabinet_type"),
-    frame_type=data.get("frame_type"),
-    remark=data.get("remark"),                
-    lease=bool(data.get("lease", 0)),       
-    created_by=data.get("created_by")
-)
+        tank_id=tank.id,
+        tank_number=data.tank_number,
+        status=status,
+        mfgr=data.mfgr,
+        date_mfg=data.date_mfg,
+        pv_code=data.pv_code,
+        un_iso_code=data.un_iso_code,
+        capacity_l=data.capacity_l,
+        mawp=data.mawp,
+        design_temperature=data.design_temperature,
+        tare_weight_kg=data.tare_weight_kg,
+        mgw_kg=data.mgw_kg,
+        mpl_kg=data.mpl_kg,
+        size=data.size,
+        pump_type=data.pump_type,
+        vesmat=data.vesmat,
+        gross_kg=data.gross_kg,
+        net_kg=data.net_kg,
+        color_body_frame=data.color_body_frame,
+        working_pressure=data.working_pressure,
+        cabinet_type=data.cabinet_type,
+        frame_type=data.frame_type,
+        remark=data.remark,
+        lease=bool(data.lease),
+        created_by=data.created_by
+    )
 
     db.add(tank_detail)
     db.commit()
@@ -239,18 +283,18 @@ def export_to_excel(db: Session = Depends(get_db)):
     )
 
 @router.put("/{tank_id}")
-def update_tank(tank_id: int, data: dict, db: Session = Depends(get_db)):
+def update_tank(tank_id: int, data: TankUpdate, db: Session = Depends(get_db)):
     tank = db.query(Tank).filter(Tank.id == tank_id).first()
     tank_detail = db.query(TankDetails).filter(TankDetails.tank_id == tank_id).first()
 
     if not tank or not tank_detail:
         raise HTTPException(status_code=404, detail="Tank not found")
 
-    if "tank_number" in data:
-        tank.tank_number = data["tank_number"]
-        tank_detail.tank_number = data["tank_number"]  # Sync tank_number to details
-    if "updated_by" in data:
-        tank.updated_by = data["updated_by"]
+    if data.tank_number is not None:
+        tank.tank_number = data.tank_number
+        tank_detail.tank_number = data.tank_number  # Sync tank_number to details
+    if data.updated_by is not None:
+        tank.updated_by = data.updated_by
 
     detail_fields = [
     "status", "mfgr", "date_mfg", "pv_code", "un_iso_code",
@@ -262,18 +306,18 @@ def update_tank(tank_id: int, data: dict, db: Session = Depends(get_db)):
 ]
 
     for field in detail_fields:
-      if field in data:
-        if field == "lease":
-            setattr(tank_detail, field, bool(data[field]))
-        elif field == "status":
-            # Validate status value
-            if data[field] not in ["active", "inactive"]:
-                raise HTTPException(status_code=400, detail="status must be 'active' or 'inactive'")
-            setattr(tank_detail, field, data[field])
-            # Sync status to tank_header
-            tank.status = data[field]
-        else:
-            setattr(tank_detail, field, data[field])
+        # Use attribute access on Pydantic model
+        if hasattr(data, field) and getattr(data, field) is not None:
+            value = getattr(data, field)
+            if field == "lease":
+                setattr(tank_detail, field, bool(value))
+            elif field == "status":
+                if value not in ["active", "inactive"]:
+                    raise HTTPException(status_code=400, detail="status must be 'active' or 'inactive'")
+                setattr(tank_detail, field, value)
+                tank.status = value
+            else:
+                setattr(tank_detail, field, value)
 
 
     db.commit()

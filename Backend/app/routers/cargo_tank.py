@@ -2,22 +2,45 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.models.cargo_tank import CargoTankTransaction
 from app.database import get_db
+from pydantic import BaseModel
+from typing import Optional
 
 router = APIRouter()
 
+
+# Pydantic schemas
+class CargoTransactionCreate(BaseModel):
+    tank_id: int
+    cargo_master_id: int
+    density: Optional[str] = None
+    compatability_notes: Optional[str] = None
+    loading_parts: Optional[str] = None
+    created_by: Optional[str] = None
+    updated_by: Optional[str] = None
+
+
+class CargoTransactionUpdate(BaseModel):
+    cargo_master_id: Optional[int] = None
+    density: Optional[str] = None
+    compatability_notes: Optional[str] = None
+    loading_parts: Optional[str] = None
+    created_by: Optional[str] = None
+    updated_by: Optional[str] = None
+
+
 # ✅ CREATE
 @router.post("/")
-def create_transaction(request: dict, db: Session = Depends(get_db)):
+def create_transaction(request: CargoTransactionCreate, db: Session = Depends(get_db)):
     try:
         new_txn = CargoTankTransaction(
-            tank_id=request["tank_id"],
-            cargo_reference=request.get("cargo_master_id"),
-            cargo_master_id=request.get("cargo_master_id"),
-            density=request.get("density"),
-            compatability_notes=request.get("compatability_notes"),
-            loading_parts=request.get("loading_parts"),
-            created_by=request.get("created_by"),
-            updated_by=request.get("updated_by")
+            tank_id=request.tank_id,
+            cargo_reference=request.cargo_master_id,
+            cargo_master_id=request.cargo_master_id,
+            density=request.density,
+            compatability_notes=request.compatability_notes,
+            loading_parts=request.loading_parts,
+            created_by=request.created_by,
+            updated_by=request.updated_by
         )
         db.add(new_txn)
         db.commit()
@@ -36,20 +59,20 @@ def get_all_transactions(db: Session = Depends(get_db)):
 
 # ✅ UPDATE
 @router.put("/{transaction_id}")
-def update_transaction(transaction_id: int, request: dict, db: Session = Depends(get_db)):
+def update_transaction(transaction_id: int, request: CargoTransactionUpdate, db: Session = Depends(get_db)):
     txn = db.query(CargoTankTransaction).filter(CargoTankTransaction.id == transaction_id).first()
     if not txn:
         raise HTTPException(status_code=404, detail="Transaction not found")
-
-    for key, value in request.items():
+    # Update attributes from Pydantic model
+    for key, value in request.dict(exclude_unset=True).items():
         if hasattr(txn, key) and value is not None:
             setattr(txn, key, value)
 
     # Keep cargo_master_id and cargo_reference in sync if cargo_master_id provided
-    if request.get("cargo_master_id") is not None:
-        txn.cargo_master_id = request.get("cargo_master_id")
+    if request.cargo_master_id is not None:
+        txn.cargo_master_id = request.cargo_master_id
         if not txn.cargo_reference:
-            txn.cargo_reference = request.get("cargo_master_id")
+            txn.cargo_reference = request.cargo_master_id
 
     db.commit()
     db.refresh(txn)

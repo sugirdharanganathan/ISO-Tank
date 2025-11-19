@@ -5,7 +5,7 @@ import os
 from dotenv import load_dotenv
 
 from app.database import engine, Base
-from app.routers import tank_details , regulations_master , tank_regulations , cargo_tank , cargo_master , auth, users, upload, tank_certificate
+from app.routers import tank_details , regulations_master , tank_regulations , cargo_tank , cargo_master , auth, users, upload, tank_certificate, drawings, valve_test_report
 
 load_dotenv()
 UPLOAD_ROOT = os.getenv("UPLOAD_ROOT", os.path.join(os.path.dirname(__file__), "..", "uploads"))
@@ -82,6 +82,18 @@ app.include_router(
     tank_certificate.router,
     prefix="/api/certificates",
     tags=["Tank Certificates"])
+
+
+app.include_router(
+    drawings.router,
+    prefix="/api/drawings",
+    tags=["Drawings"])
+
+
+app.include_router(
+    valve_test_report.router,
+    prefix="/api/valve-test",
+    tags=["Valve Test Report"])
 
 @app.get("/")
 def main_page():
