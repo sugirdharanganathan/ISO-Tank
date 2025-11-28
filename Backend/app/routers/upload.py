@@ -3,14 +3,14 @@ import logging
 from datetime import datetime, date
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query
-from sqlalchemy import and_, func, text
+from sqlalchemy import and_
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from app.database import get_db
 from app.models.tank_images import TankImage
 from app.models.tank_header import Tank
-from app.models.user import User
+# Ensure these imports match your project structure
 from app.utils.upload_utils import (
     IMAGE_TYPES,
     validate_image_type,
@@ -153,13 +153,6 @@ def upload_image(
 ):
     """
     Upload or update today's image for a tank and image type.
-    
-    - **tank_number**: Tank identifier
-    - **image_type**: Image type slug (e.g., 'frontview')
-    - **file**: Image file (multipart/form-data)
-    - **emp_id**: Employee ID (optional, for audit)
-    
-    Returns: Uploaded image record with full metadata
     """
     try:
         # Validate tank exists
@@ -168,7 +161,7 @@ def upload_image(
         # Validate and normalize image type
         image_type = validate_image_type(image_type)
         
-        # Save file to disk
+        # Save file to disk (UPDATED LOGIC CALLED HERE)
         image_path = save_uploaded_file(
             file,
             tank_number,
@@ -189,7 +182,8 @@ def upload_image(
         ).first()
         
         if existing:
-            # Delete old file if it exists and is different
+            # Delete old file if it exists and path is different
+            # Note: With fixed filenames, path might be same, so we verify
             if existing.image_path and existing.image_path != image_path:
                 delete_file_if_exists(UPLOAD_ROOT, existing.image_path)
             
@@ -244,13 +238,6 @@ def update_image(
 ):
     """
     Update today's image for a tank and image type (replace if exists).
-    
-    - **tank_number**: Tank identifier
-    - **image_type**: Image type slug
-    - **file**: Image file (multipart/form-data)
-    - **emp_id**: Employee ID (optional, for audit)
-    
-    Returns: Updated image record
     """
     try:
         # Validate tank exists
@@ -270,11 +257,8 @@ def update_image(
             )
         ).first()
         
-        # Delete existing file if present
-        if existing and existing.image_path:
-            delete_file_if_exists(UPLOAD_ROOT, existing.image_path)
-        
-        # Save new file
+        # Save new file first
+        # (With fixed filenames, this overwrites the file on disk immediately)
         image_path = save_uploaded_file(
             file,
             tank_number,
@@ -284,6 +268,10 @@ def update_image(
         )
         
         if existing:
+            # If path somehow changed (e.g. extension changed), delete old specific file
+            if existing.image_path and existing.image_path != image_path:
+                delete_file_if_exists(UPLOAD_ROOT, existing.image_path)
+
             # Update existing record
             existing.image_path = image_path
             existing.emp_id = emp_id
@@ -327,23 +315,13 @@ def get_tank_images(
     image_type: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
-    """
-    Get all images for a tank, with optional filter by image type.
-    
-    - **tank_number**: Tank identifier
-    - **image_type**: Optional image type slug filter
-    
-    Returns: List of image entries with all IMAGE_TYPES (uploaded=true/false)
-    """
+    """Get all images for a tank."""
     try:
-        # Validate tank exists
         validate_tank(tank_number, db)
         
-        # Normalize image_type filter if provided
         if image_type:
             image_type = validate_image_type(image_type)
         
-        # Get all images for this tank
         query = db.query(TankImage).filter(TankImage.tank_number == tank_number)
         
         if image_type:
@@ -351,18 +329,15 @@ def get_tank_images(
         
         db_records = query.all()
         
-        # Build response with all IMAGE_TYPES
         response_data = []
         
         if image_type:
-            # If filter applied, return only that type
             existing = next((r for r in db_records if r.image_type == image_type), None)
             if existing:
                 response_data.append(build_image_response(existing))
             else:
                 response_data.append(build_empty_image_response(tank_number, image_type))
         else:
-            # Return all IMAGE_TYPES
             for type_slug in IMAGE_TYPES.keys():
                 existing = next((r for r in db_records if r.image_type == type_slug), None)
                 if existing:
@@ -389,23 +364,11 @@ def delete_image(
     date_str: str = Query(...),
     db: Session = Depends(get_db)
 ):
-    """
-    Delete a specific image by tank, type, and date.
-    
-    - **tank_number**: Tank identifier
-    - **image_type**: Image type slug
-    - **date_str**: Date in YYYY-MM-DD format
-    
-    Returns: Success message with deleted status
-    """
+    """Delete a specific image."""
     try:
-        # Validate tank exists
         validate_tank(tank_number, db)
-        
-        # Validate and normalize image type
         image_type = validate_image_type(image_type)
         
-        # Parse date
         try:
             delete_date = datetime.strptime(date_str, "%Y-%m-%d").date()
         except ValueError:
@@ -414,7 +377,6 @@ def delete_image(
                 detail="Invalid date format. Use YYYY-MM-DD"
             )
         
-        # Find and delete record
         record = db.query(TankImage).filter(
             and_(
                 TankImage.tank_number == tank_number,
@@ -429,11 +391,10 @@ def delete_image(
                 detail=f"Image not found for tank '{tank_number}', type '{image_type}' on {date_str}"
             )
         
-        # Delete file from disk
+        # Delete file from disk (and clean folder if empty)
         if record.image_path:
             delete_file_if_exists(UPLOAD_ROOT, record.image_path)
         
-        # Delete DB record
         db.delete(record)
         db.commit()
         
@@ -459,19 +420,10 @@ def delete_tank_images(
     date_str: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
-    """
-    Delete all images for a tank (or for a specific date if provided).
-    
-    - **tank_number**: Tank identifier
-    - **date_str**: Optional date filter in YYYY-MM-DD format
-    
-    Returns: Count of deleted images
-    """
+    """Delete all images for a tank."""
     try:
-        # Validate tank exists
         validate_tank(tank_number, db)
         
-        # Build query
         query = db.query(TankImage).filter(TankImage.tank_number == tank_number)
         
         if date_str:
@@ -487,7 +439,6 @@ def delete_tank_images(
         records = query.all()
         deleted_count = 0
         
-        # Delete files and records
         for record in records:
             if record.image_path:
                 delete_file_if_exists(UPLOAD_ROOT, record.image_path)
@@ -510,4 +461,3 @@ def delete_tank_images(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error deleting images"
         )
-
