@@ -24,7 +24,11 @@ class TankDetails(Base):
     gross_kg = Column(Float)
     net_kg = Column(Float)
     color_body_frame = Column(String(255))
-    remark = Column(Text, nullable=True)         # 🆕 Added
-    lease = Column(Boolean, default=False)       # 🆕 Added
+    working_pressure = Column(Float, nullable=True)
+    cabinet_type = Column(String(100), nullable=True)
+    frame_type = Column(String(100), nullable=True)
+    
+    remark = Column(Text, nullable=True)
+    lease = Column(Boolean, default=False)
     created_by = Column(String(255), nullable=True)
     updated_by = Column(String(255), nullable=True)

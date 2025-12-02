@@ -1,91 +1,78 @@
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
-import os
-from dotenv import load_dotenv
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware 
+from sqlalchemy import text
+from app.database import init_db, get_db, engine, SessionLocal # <--- Added SessionLocal
+from app.seed import init_seed_data # <--- Import the seeding function
 
-from app.database import engine, Base
-from app.routers import tank_details , regulations_master , tank_regulations , cargo_tank , cargo_master , tank_inspection, auth, users, upload
-
-load_dotenv()
-UPLOAD_ROOT = os.getenv("UPLOAD_ROOT", os.path.join(os.path.dirname(__file__), "..", "uploads"))
-os.makedirs(UPLOAD_ROOT, exist_ok=True)
-
-app = FastAPI(
-    title="ISO TANKS MANAGEMENT",
-    version="1.0.0"
+from app.routers import (
+    auth, users, 
+    tank_details, tank_inspection, 
+    tank_regulations, regulations_master,
+    cargo_master, cargo_tank,
+    upload, tank_certificate, tank_drawings,
+    valve_test_report,
+    ppt_router
 )
 
-Base.metadata.create_all(bind=engine)
+app = FastAPI(title="ISO-TANK API")
 
-templates = Jinja2Templates(directory="app/templates")
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
-app.mount("/uploads", StaticFiles(directory=UPLOAD_ROOT), name="uploads")
-
+# --- CORS MIDDLEWARE ---
+origins = ["*"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://127.0.0.1:5500",
-        "http://localhost:5500",
-        "http://localhost:8000",
-    ],
+    allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition"]
 )
 
-app.include_router(
-    tank_details.router,
-    prefix="/api/tank-details",
-    tags=["Tank Details"]
-)
+# --- ROUTERS ---
+app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
+app.include_router(users.router, prefix="/api/users", tags=["Users"])
+app.include_router(tank_details.router, prefix="/api/tanks", tags=["Tanks"]) 
+app.include_router(tank_inspection.router, prefix="/api/tank-inspection", tags=["Tank Inspection"])
+app.include_router(tank_certificate.router, prefix="/api/tank-certificates", tags=["Tank Certificates"])
+app.include_router(tank_regulations.router, prefix="/api/tank-regulations", tags=["Tank Regulations"])
+app.include_router(regulations_master.router, prefix="/api/regulations-master", tags=["Regulations Master"])
+app.include_router(cargo_master.router, prefix="/api/cargo-master", tags=["Cargo Master"])
+app.include_router(cargo_tank.router, prefix="/api/cargo-tank", tags=["Cargo Tank"])
+app.include_router(upload.router, prefix="/api/upload", tags=["Upload"])
+app.include_router(tank_drawings.router, prefix="/api/tank-drawings", tags=["Tank Drawings"])
+app.include_router(valve_test_report.router, prefix="/api/valve-test-reports", tags=["Valve Test Reports"])
+app.include_router(ppt_router.router, prefix="/api/ppt", tags=["PPT Generation"])
 
-app.include_router(
-    regulations_master.router,
-    prefix="/api/regulations",
-    tags=["Regulations"]
-)
+# --- STARTUP EVENT ---
+@app.on_event("startup")
+def on_startup():
+    # 1. Initialize standard tables
+    init_db()
+    
+    # 2. AUTO-FIX: Add 'inspection_agency' column if it's missing
+    with engine.connect() as conn:
+        try:
+            print("Checking database schema for missing columns...")
+            conn.execute(text("ALTER TABLE tank_certificate ADD COLUMN inspection_agency VARCHAR(10) NULL;"))
+            conn.commit()
+            print("SUCCESS: Added missing column 'inspection_agency' to table 'tank_certificate'.")
+            
+        except Exception as e:
+            # This is expected if the column already exists
+            print(f"Schema check passed (or column exists): {e}")
 
-app.include_router(
-    tank_regulations.router,
-    prefix="/api/regulations_tank",
-    tags=["Regulations tank"]
-)
+    # 3. SEEDING: Insert initial values for Master tables
+    # We use a separate SessionLocal just for this operation
+    db = SessionLocal()
+    try:
+        print("Checking for seed data...")
+        init_seed_data(db)
+        print("Seeding check completed.")
+    except Exception as e:
+        print(f"Error during seeding: {e}")
+    finally:
+        db.close()
 
 
-app.include_router(
-    cargo_tank.router,
-    prefix="/api/cargo_tank",
-    tags=["Cargo Tank"])
-
-app.include_router(
-    cargo_master.router,
-    prefix="/api/cargo_tank_master",
-    tags=["Cargo Tank Master"])
-
-app.include_router(
-    tank_inspection.router,
-    prefix="/api/inspections",
-    tags=["Inspections"])
-
-app.include_router(
-    auth.router,
-    prefix="/api/auth",
-    tags=["Auth"])
-
-app.include_router(
-    users.router,
-    prefix="/api/users",
-    tags=["Users"])
-
-app.include_router(
-    upload.router,
-    prefix="/api/upload",
-    tags=["Upload"])
-
-@app.get("/", response_class=HTMLResponse)
-def main_page(request: Request):
-    return templates.TemplateResponse("tank_management.html", {"request": request})
-
+@app.get("/health")
+def health():
+    return {"status": "ok"}

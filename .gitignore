@@ -1,0 +1,6 @@
+.DS_Store
+**/.DS_Store
+Backend/.env
+Backend/uploads/*
+Backend/venv
+Backend/requirements.txt

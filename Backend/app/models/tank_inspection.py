@@ -1,13 +1,15 @@
 from sqlalchemy import Column, Integer, String, Date, TIMESTAMP, func, ForeignKey
-from sqlalchemy.ext.declarative import declarative_base
+from app.database import Base # <-- CORRECT: Import the single, central Base object
 
-Base = declarative_base()
 
 class TankInspection(Base):
     __tablename__ = "tank_inspection"
 
     id = Column(Integer, primary_key=True, index=True)
-    tank_id = Column(Integer, nullable=False)  
+    
+    # FIX: Must be a ForeignKey pointing to the main tank header
+    tank_id = Column(Integer, ForeignKey("tank_header.id", ondelete="CASCADE"), nullable=False) 
+    
     insp_2_5y_date = Column(Date, nullable=True)
     next_insp_date = Column(Date, nullable=True)
     tank_certificate = Column(String(255), nullable=True)
